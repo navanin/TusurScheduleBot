@@ -1,0 +1,5 @@
+CREATE TABLE binds(
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   groupId TEXT,
+   groupNumber TEXT
+)
