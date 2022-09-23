@@ -33,9 +33,6 @@ func main() {
 	// Функция, обрабатывающая новое событие получения нового сообщения.
 	lp.MessageNew(func(_ context.Context, obj events.MessageNewObject) {
 
-		// Сообщение логируется в консоль (перенести в bot.log)ю
-		log.Printf("%d %d: %s", obj.Message.PeerID, obj.Message.FromID, obj.Message.Text)
-
 		// Перевод сообщения в нижний регистр для последующего поиска в нем.
 		obj.Message.Text = strings.ToLower(obj.Message.Text)
 
