@@ -58,13 +58,13 @@ func main() {
 
 			// Номер группы в сообщении обнаруживается с помощью регулярного выражения.
 			// К слову, из-за этого, группы с буквами в номере и не обнаруживаются =)
-			haveNumber, _ := regexp.MatchString("/bind \\d{3,5}", obj.Message.Text)
+			haveNumber, _ := regexp.MatchString("/bind (\\d[А-яA-z0-9]\\d)(\\-[А-яA-z0-9]{0,2})?", obj.Message.Text)
 
 			if haveNumber {
 
 				// Если в сообщении обнаружен номер группы, в таком случае, он вычленяется из сообщения и передается
 				// в функцию getBinding(), для проверки на наличие ассоциации.
-				re := regexp.MustCompile(`\d{3,5}`)
+				re := regexp.MustCompile(`(\d[А-яA-z0-9]\d)(\-[А-яA-z0-9]{0,2})?`)
 				bindingGroupNumber := re.FindString(obj.Message.Text)
 				bindFlag, _ := getBinding(db, obj.Message.PeerID)
 
@@ -124,7 +124,7 @@ func main() {
 			// "Расписос на завтра" подразумевает все то же самое, что и "расписос", но на дату завтрашнего дня.
 
 			date := time.Now().AddDate(0, 0, 1).Format("20060102")
-			haveNumber, _ := regexp.MatchString("расписос на завтра \\d{3,5}", obj.Message.Text)
+			haveNumber, _ := regexp.MatchString("расписос на завтра (\\d[А-яA-z0-9]\\d)(\\-[А-яA-z0-9]{0,2})?", obj.Message.Text)
 
 			if !haveNumber {
 				bindFlag, groupNumber := getBinding(db, obj.Message.PeerID)
@@ -135,7 +135,7 @@ func main() {
 					message = "Использование: расписос на завтра *номер_группы*.\nДля получения подробной информации введите /help."
 				}
 			} else {
-				re := regexp.MustCompile(`\d{3,5}`)
+				re := regexp.MustCompile(`(\d[А-яA-z0-9]\d)(\-[А-яA-z0-9]{0,2})?`)
 				groupNumber := re.FindString(obj.Message.Text)
 				parseSchedule(groupNumber, date)
 				message = formMessage(groupNumber, date)
@@ -160,7 +160,8 @@ func main() {
 			date := time.Now().Format("20060102")
 
 			// Необходимо найти номер группы в сообщении, с помощью регулярных выражений.
-			haveNumber, _ := regexp.MatchString("расписос \\d{3,5}", obj.Message.Text)
+			//haveNumber, _ := regexp.MatchString("расписос (\\d(\\w|\\d)\\d)(\\-(\\w|\\d))?", obj.Message.Text)
+			haveNumber, _ := regexp.MatchString("расписос (\\d[А-яA-z0-9]\\d)(\\-[А-яA-z0-9]{0,2})?", obj.Message.Text)
 
 			if !haveNumber {
 
@@ -182,7 +183,7 @@ func main() {
 
 				// Если номер группы найден в сообщении, необходимо передать переменную groupNumber
 				// в parseSchedule() и formMessage(), для отправки расписания.
-				re := regexp.MustCompile(`\d{3,5}`)
+				re := regexp.MustCompile(`(\d[А-яA-z0-9]\d)(\-[А-яA-z0-9]{0,2})?`)
 				groupNumber := re.FindString(obj.Message.Text)
 				parseSchedule(groupNumber, date)
 				message = formMessage(groupNumber, date)
