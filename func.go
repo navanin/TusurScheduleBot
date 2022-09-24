@@ -162,7 +162,7 @@ func formMessage(groupNumber string, date string) string {
 	var fmtDate, _ = time.Parse("20060102", date)
 
 	// Формирование шапки сообщения.
-	message = fmt.Sprintf("Расписание группы %s на %s.\n\n", groupNumber, fmtDate.Format("02.01.2006"))
+	message += fmt.Sprintf("Расписание группы %s на %s.\n\n", groupNumber, fmtDate.Format("02.01.2006"))
 
 	if len(lessons) == 0 {
 		message += "Занятий нет - выходные 🥳"
@@ -251,3 +251,15 @@ func rmBinding(db *sql.DB, conversationId int) bool {
 		return true
 	}
 }
+
+/*
+func scheduledSendMorning() {
+	taskScheduler := chrono.NewDefaultTaskScheduler()
+	now := time.Now().Weekday().String()
+
+	task, err := taskScheduler.ScheduleAtFixedRate(func(ctx context.Context) {
+		log.Print("Fixed Rate of 5 seconds")
+	}, 5*time.Second, WithStartTime(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second()+2))
+
+}
+*/
