@@ -75,7 +75,6 @@ func getSchedule(groupNumber string) {
 
 	// Генерация ссылки для получения расписания. Вызов функции getFaculty() подставляет в ссылку факультет, а переменная groupNumber указывает номер учебной группы.
 	url := "https://timetable.tusur.ru/faculties/" + getFaculty(groupNumber) + "/groups/" + groupNumber + ".ics"
-	println("\n\n", url, "\n\n")
 
 	// GET-запрос на ссылку для получения расписания
 	resp, err := http.Get(url)
