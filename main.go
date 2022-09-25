@@ -35,7 +35,7 @@ func main() {
 	// Функция, обрабатывающая новое событие получения нового сообщения.
 	lp.MessageNew(func(_ context.Context, obj events.MessageNewObject) {
 
-		var message string
+		var message = ""
 
 		// Перевод сообщения в нижний регистр для последующего поиска в нем.
 		obj.Message.Text = strings.ToLower(obj.Message.Text)
@@ -224,7 +224,6 @@ func main() {
 			vk.MessagesSend(b.Params)
 			return
 		}
-		message = ""
 	})
 
 	// Запуск lp-хендлера

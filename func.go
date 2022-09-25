@@ -154,7 +154,7 @@ func formMessage(groupNumber string, date string) string {
 	// В качестве аргументов получает дату и номер группы.
 	// По скольку массив с парами является глобальным, его не нужно передавать в функцию.
 
-	var message string
+	var message = ""
 	var lessonType string // Лекция/Практика/Сам.раб/Лаб.раб - получает из поля события "Description".
 	var teacher string    // Фамилия И.О. преподавателя - получает из поля события "Description".
 	var classroom string  // номер аудитории - получает из поля события "Location" (не путать с "Geo").
