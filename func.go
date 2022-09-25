@@ -251,15 +251,3 @@ func rmBinding(db *sql.DB, conversationId int) bool {
 		return true
 	}
 }
-
-/*
-func scheduledSendMorning() {
-	taskScheduler := chrono.NewDefaultTaskScheduler()
-	now := time.Now().Weekday().String()
-
-	task, err := taskScheduler.ScheduleAtFixedRate(func(ctx context.Context) {
-		log.Print("Fixed Rate of 5 seconds")
-	}, 5*time.Second, WithStartTime(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second()+2))
-
-}
-*/

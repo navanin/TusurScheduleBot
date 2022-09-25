@@ -27,6 +27,8 @@ func main() {
 	vk := api.NewVK(TOKEN)
 	group, _ := vk.GroupsGetByID(nil)
 
+	go cronSending(db, vk)
+
 	// Создание нового lonpoll'а для обработки событий
 	lp, _ := longpoll.NewLongPoll(vk, group[0].ID)
 
@@ -126,12 +128,12 @@ func main() {
 			var date string
 
 			// Проверка на выходной день
-			if time.Now().Weekday().String() == "Sunday" {
+			if time.Now().AddDate(0, 0, 1).Weekday().String() == "Sunday" {
 				// Если завтра воскресенье, то прибавляется два дня, вместо одного
 				date = time.Now().AddDate(0, 0, 2).Format("20060102")
 				message += "Завтра воскресенье, но вот расписание на понедельник: \n"
 			} else {
-				// Иначе, прибаляется один день
+				// Иначе, прибавляется один день
 				date = time.Now().AddDate(0, 0, 1).Format("20060102")
 			}
 
