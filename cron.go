@@ -19,6 +19,8 @@ func cronSending(db *sql.DB, vk *api.VK) {
 	// Расписание отправляемое утром - на сегодняшний день, вечером - на завтрашний.
 	// Используется пакет kronika (github.com/stephenafamo/kronika).
 
+	var message string
+
 	// Благодаря context.Background(), функция не имеет ни дедлайнов, ни переменных, и выполняется в бэкграунде.
 	ctx := context.Background()
 
@@ -28,7 +30,7 @@ func cronSending(db *sql.DB, vk *api.VK) {
 	interval := time.Hour * 12 //  8:00 am and 20:00 pm
 
 	// Начало kronika-действия. В kronika.Every() передается контекст, интервал и время начала.
-	for _ = range kronika.Every(ctx, start, interval) {
+	for range kronika.Every(ctx, start, interval) {
 
 		var groupId int
 		var groupNumber string

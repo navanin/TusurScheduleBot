@@ -35,6 +35,8 @@ func main() {
 	// Функция, обрабатывающая новое событие получения нового сообщения.
 	lp.MessageNew(func(_ context.Context, obj events.MessageNewObject) {
 
+		var message string
+
 		// Перевод сообщения в нижний регистр для последующего поиска в нем.
 		obj.Message.Text = strings.ToLower(obj.Message.Text)
 
@@ -51,6 +53,7 @@ func main() {
 			b.RandomID(0)
 			b.PeerID(obj.Message.PeerID)
 			vk.MessagesSend(b.Params)
+			return
 		}
 
 		if strings.Contains(obj.Message.Text, "/bind") {
@@ -94,6 +97,7 @@ func main() {
 			b.RandomID(0)
 			b.PeerID(obj.Message.PeerID)
 			vk.MessagesSend(b.Params)
+			return
 		}
 
 		if strings.Contains(obj.Message.Text, "/unbind") {
@@ -117,6 +121,7 @@ func main() {
 			b.RandomID(0)
 			b.PeerID(obj.Message.PeerID)
 			vk.MessagesSend(b.Params)
+			return
 		}
 
 		// Блок расписания.
@@ -217,7 +222,7 @@ func main() {
 			b.RandomID(0)
 			b.PeerID(obj.Message.PeerID)
 			vk.MessagesSend(b.Params)
-
+			return
 		}
 		message = ""
 	})

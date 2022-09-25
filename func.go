@@ -154,6 +154,7 @@ func formMessage(groupNumber string, date string) string {
 	// В качестве аргументов получает дату и номер группы.
 	// По скольку массив с парами является глобальным, его не нужно передавать в функцию.
 
+	var message string
 	var lessonType string // Лекция/Практика/Сам.раб/Лаб.раб - получает из поля события "Description".
 	var teacher string    // Фамилия И.О. преподавателя - получает из поля события "Description".
 	var classroom string  // номер аудитории - получает из поля события "Location" (не путать с "Geo").
@@ -175,9 +176,9 @@ func formMessage(groupNumber string, date string) string {
 		// Так как тип пары и препод хранятся в одном и том же поле, приходиться
 		// прибегать к подобному делению переменной.
 		// Аудитории разделяются слешами, из-за этого их убираю с помощью strings.ReplaceAll().
-		desсriptionSplit := strings.Split(lessons[i].GetDescription(), "\\, ")
-		lessonType = desсriptionSplit[0]
-		teacher = desсriptionSplit[1]
+		descriptionSplit := strings.Split(lessons[i].GetDescription(), "\\, ")
+		lessonType = descriptionSplit[0]
+		teacher = descriptionSplit[1]
 		classroom = strings.ReplaceAll(lessons[i].GetLocation(), "\\", "")
 
 		// На каждой итерации цикла, к финальному сообщению добавляется следующая пара.
