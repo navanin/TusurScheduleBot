@@ -129,14 +129,37 @@ func main() {
 
 		if strings.Contains(obj.Message.Text, "/db") {
 
+			// Если сообщение содержит текст "/db", необходимо отправить все существующие ассоциации чатов с группами в качестве ответа.
+
+			// т.к. функция служебная, необходимо проверять, от кого приходит сообщение.
+			// Если сообщение пришло не от меня, то в качестве ответа отправляется сообщение о нехватке доступа.
+			if obj.Message.PeerID != 366661090 {
+				b.Message(noAccess)
+			} else {
+				// Иначе отправляется информация об ассоциациях.
+				b.Message(getBindingsInfo(db))
+			}
+			vk.MessagesSend(b.Params)
+			return
+		}
+
+		if strings.Contains(obj.Message.Text, "/upd ") {
+
+			// Если сообщение содержит текст "/udp", то в качестве ответа будет отправлена переменная helpMsg (messages.go),
+			// содержащее список команд и полезной информации.
+
 			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
 
 			if obj.Message.PeerID != 366661090 {
 				b.Message(noAccess)
 			} else {
-				b.Message(getBindingsInfo(db))
+				msg := strings.ReplaceAll(obj.Message.Text, "/upd", "")
+				sendUpdMessage(db, vk, msg)
+				b.Message("S")
 			}
 			vk.MessagesSend(b.Params)
+			// Сборка сообщения-ответа.
+			return
 		}
 
 		// Блок расписания.

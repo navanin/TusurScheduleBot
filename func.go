@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/PuloV/ics-golang"
+	"github.com/SevereCloud/vksdk/v2/api"
+	"github.com/SevereCloud/vksdk/v2/api/params"
+	"github.com/essentialkaos/translit/v2"
 	"io"
 	"net/http"
 	"os"
@@ -69,6 +72,7 @@ func getSchedule(groupNumber string) {
 	// для последующего парсинга из него.
 
 	// Вызов функции для удаления предыдущего файла с расписанием выбранной группы. Костыль, но расписание в ТУСУРе непостоянное.
+
 	removeFiles("./groups/" + groupNumber + ".ics")
 
 	// Создание файла *номер_группы*.ics для записи в него полученного расписания.
@@ -98,6 +102,8 @@ func parseSchedule(groupNumber string, date string) {
 
 	// Функция parseSchedule() отвечает за поиск пар на конкретный день в файле расписания и последующую передачу найденных
 	// пар в массив lessons, который будет хранить информацию о занятиях до конца работы с сообщением.
+
+	groupNumber = translit.EncodeToICAO(groupNumber)
 
 	// Функция getSchedule() вызывается для получения максимально актуального расписания группы.
 	getSchedule(groupNumber)
@@ -190,7 +196,7 @@ func formMessage(groupNumber string, date string) string {
 			lessons[i].GetSummary(), lessonType, teacher, classroom, //lessons[i].GetLocation(),
 			lessons[i].GetStart().Format("15:04"), lessons[i].GetEnd().Format("15:04"))
 	}
-	log2file("Formed message for "+groupNumber+" .", nil)
+	log2file("Formed message for "+groupNumber+".", nil)
 	return message
 }
 
@@ -262,11 +268,14 @@ func rmBinding(db *sql.DB, conversationId int) bool {
 
 func getBindingsInfo(db *sql.DB) string {
 
+	// Функция getBindingsInfo() отвечает за формирование сообщения со всеми асоциациями.
+
 	var message string
 	var groupId string
 	var groupNumber string
 	var counter = 0
 
+	// Выражение, для получения всех столбцов БД
 	rows, err := db.Query("select groupID, groupNumber from binds")
 
 	message = "Актуальные ассоциации в БД:\n"
@@ -293,4 +302,38 @@ func log2file(str string, err error) {
 		log += fmt.Sprint(err)
 	}
 	f.WriteString(log + "\n")
+}
+
+func sendUpdMessage(db *sql.DB, vk *api.VK, message string) string {
+
+	// Функция для рассылки произвольного сообщения по всем беседам, в которых были созданы ассоциации.
+
+	var groupId = 0
+	var response = fmt.Sprintf("Сообщение: \n\"%s\n\nБыло отправлено в: ", message)
+	// Запрос к БД на получение всех ID ассоциированных чатов
+	rows, err := db.Query("select groupID from binds")
+	if err != nil {
+		log2file(fmt.Sprintf("DB(upd-get) ERROR: "), err)
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+
+		// Получение ID бесед
+		err = rows.Scan(&groupId)
+		if err != nil {
+			log2file(fmt.Sprintf("DB(upd-query-get) ERROR: "), err)
+		}
+
+		println(groupId)
+
+		// Отправка переданного в функцию сообщения в беседу с соответствующим groupId
+		b := params.NewMessagesSendBuilder()
+		b.RandomID(0)
+		b.PeerID(groupId)
+		b.Message(message)
+		vk.MessagesSend(b.Params)
+		response += fmt.Sprintf("%d", groupId)
+	}
+	return response
 }
