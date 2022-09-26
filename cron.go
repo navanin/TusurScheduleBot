@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/SevereCloud/vksdk/v2/api"
 	"github.com/SevereCloud/vksdk/v2/api/params"
 	"github.com/stephenafamo/kronika"
@@ -99,8 +100,9 @@ func cronSending(db *sql.DB, vk *api.VK) {
 				vk.MessagesSend(b.Params)
 			} else {
 				// Если действие выполняется не в 08 и не в 20, логируется ошибка, связанная со временем.
-				log.Print("CRON ERROR: Какие-то ошибки со временем.")
+				log2file(fmt.Sprintf("cronSending() time is broken."), err)
 			}
+			log2file(fmt.Sprintf("cronSending() to %d on group %s.", groupId, groupNumber), nil)
 			// Очистка сообщения после каждой итерации.
 			message = ""
 		}

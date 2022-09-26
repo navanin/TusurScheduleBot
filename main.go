@@ -20,7 +20,9 @@ func main() {
 	// Подключение к БД sqlite3
 	db, err := sql.Open("sqlite3", "./sqlite.db")
 	if err != nil {
-		log.Print("DB(open) ERROR: ", err)
+		log2file("DB open ERROR: ", err)
+	} else {
+		log2file("DB successfully opened.", nil)
 	}
 
 	// Подключение к API VK с помощью токена, и получение группы, от которой был получен токен.
@@ -36,6 +38,9 @@ func main() {
 	lp.MessageNew(func(_ context.Context, obj events.MessageNewObject) {
 
 		var message = ""
+		b := params.NewMessagesSendBuilder()
+		b.RandomID(0)
+		b.PeerID(obj.Message.PeerID)
 
 		// Перевод сообщения в нижний регистр для последующего поиска в нем.
 		obj.Message.Text = strings.ToLower(obj.Message.Text)
@@ -47,11 +52,10 @@ func main() {
 			// Если сообщение содержит текст "/help", то в качестве ответа будет отправлена переменная helpMsg (messages.go),
 			// содержащее список команд и полезной информации.
 
+			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
+
 			// Сборка сообщения-ответа.
-			b := params.NewMessagesSendBuilder()
 			b.Message(helpMsg)
-			b.RandomID(0)
-			b.PeerID(obj.Message.PeerID)
 			vk.MessagesSend(b.Params)
 			return
 		}
@@ -61,8 +65,9 @@ func main() {
 			// Если сообщение содержит текст "/bind", необходимо обнаружить номер группы, отправленный в сообщении,
 			// проверить наличие существующей ассоциации и, при её отсутствии, создать с ней новую.
 
+			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
+
 			// Номер группы в сообщении обнаруживается с помощью регулярного выражения.
-			// К слову, из-за этого, группы с буквами в номере и не обнаруживаются =)
 			haveNumber, _ := regexp.MatchString("/bind (\\d[А-яA-z0-9]\\d)(\\-[А-яA-z0-9]{0,2})?", obj.Message.Text)
 
 			if haveNumber {
@@ -92,10 +97,7 @@ func main() {
 			}
 
 			// Сборка сообщения-ответа.
-			b := params.NewMessagesSendBuilder()
 			b.Message(message)
-			b.RandomID(0)
-			b.PeerID(obj.Message.PeerID)
 			vk.MessagesSend(b.Params)
 			return
 		}
@@ -104,6 +106,8 @@ func main() {
 
 			// Если сообщение содержит текст "/unbind", необходимо обнаружить номер группы, отправленный в сообщении,
 			// проверить наличие существующей с ней ассоциации и, при её наличии, удалить ее.
+
+			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
 
 			// Для удаления ассоциации вызывается функция rmBinding().
 			if rmBinding(db, obj.Message.PeerID) {
@@ -116,12 +120,23 @@ func main() {
 			}
 
 			// Сборка сообщения-ответа.
-			b := params.NewMessagesSendBuilder()
 			b.Message(message)
-			b.RandomID(0)
-			b.PeerID(obj.Message.PeerID)
 			vk.MessagesSend(b.Params)
 			return
+		}
+
+		// Блок служебных команд
+
+		if strings.Contains(obj.Message.Text, "/db") {
+
+			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
+
+			if obj.Message.PeerID != 366661090 {
+				b.Message(noAccess)
+			} else {
+				b.Message(getBindingsInfo(db))
+			}
+			vk.MessagesSend(b.Params)
 		}
 
 		// Блок расписания.
@@ -129,6 +144,8 @@ func main() {
 		if strings.Contains(obj.Message.Text, "расписос на завтра") {
 
 			// "Расписос на завтра" подразумевает все то же самое, что и "расписос", но на дату завтрашнего дня.
+
+			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
 
 			var date string
 
@@ -160,10 +177,7 @@ func main() {
 			}
 
 			// Собираем сообщение-ответ
-			b := params.NewMessagesSendBuilder()
 			b.Message(message)
-			b.RandomID(0)
-			b.PeerID(obj.Message.PeerID)
 			vk.MessagesSend(b.Params)
 			return
 		}
@@ -173,6 +187,8 @@ func main() {
 			// Если сообщение содержит текст "расписос", ожидается два варианта развития событий:
 			// 1. Чат ассоциирован с группой
 			// 2. Чат не ассоциирован с группой
+
+			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
 
 			var date string
 
@@ -217,10 +233,7 @@ func main() {
 			}
 
 			// Собираем сообщение-ответ
-			b := params.NewMessagesSendBuilder()
 			b.Message(message)
-			b.RandomID(0)
-			b.PeerID(obj.Message.PeerID)
 			vk.MessagesSend(b.Params)
 			return
 		}
