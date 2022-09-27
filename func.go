@@ -1,11 +1,8 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"github.com/PuloV/ics-golang"
-	"github.com/SevereCloud/vksdk/v2/api"
-	"github.com/SevereCloud/vksdk/v2/api/params"
 	"github.com/essentialkaos/translit/v2"
 	"io"
 	"net/http"
@@ -50,7 +47,6 @@ func getFaculty(groupNumber string) string {
 		}
 	}
 
-	// Эксешпшн на неправильную группу - ToDo
 	return ""
 }
 
@@ -62,8 +58,6 @@ func removeFiles(fileName string) {
 	if _, err := os.Stat(fileName); err == nil {
 		os.Remove(fileName)
 	}
-
-	log2file("Removed file "+fileName, nil)
 }
 
 func getSchedule(groupNumber string) {
@@ -77,25 +71,18 @@ func getSchedule(groupNumber string) {
 
 	// Создание файла *номер_группы*.ics для записи в него полученного расписания.
 	file, _ := os.Create("./groups/" + groupNumber + ".ics")
-	log2file("Created file ./groups/"+groupNumber+".ics", nil)
 
 	// Генерация ссылки для получения расписания. Вызов функции getFaculty() подставляет в ссылку факультет, а переменная groupNumber указывает номер учебной группы.
 	url := "https://timetable.tusur.ru/faculties/" + getFaculty(groupNumber) + "/groups/" + groupNumber + ".ics"
 
 	// GET-запрос на ссылку для получения расписания
-	resp, err := http.Get(url)
-
-	if err != nil {
-		log2file("Couldn't get timetable of "+groupNumber+".", err)
-		return
-	}
+	resp, _ := http.Get(url)
 
 	// Копирование полученного на запрос GET, ответа в файл
 	defer resp.Body.Close()
 	defer file.Close()
-	_, err = io.Copy(file, resp.Body)
+	_, _ = io.Copy(file, resp.Body)
 
-	log2file("Got timetable of "+groupNumber+".", nil)
 }
 
 func parseSchedule(groupNumber string, date string) {
@@ -118,8 +105,6 @@ func parseSchedule(groupNumber string, date string) {
 	ics.RepeatRuleApply = true
 	inputChan := parser.GetInputChan()
 	inputChan <- "./groups/" + groupNumber + ".ics"
-
-	log2file("Created parser on "+groupNumber+".ics", nil)
 
 	// parser.Wait() используется для ожидания завершения работы парсера. Результаты парсинга записываются в переменную cal, нулевой индекс.
 	parser.Wait()
@@ -173,7 +158,7 @@ func formMessage(groupNumber string, date string) string {
 	var fmtDate, _ = time.Parse("20060102", date)
 
 	// Формирование шапки сообщения.
-	message += fmt.Sprintf("Расписание группы %s на %s.\n\n", groupNumber, fmtDate.Format("02.01.2006"))
+	message += fmt.Sprintf("Расписание группы %s на %s (%s).\nВсего %d пар.\n\n", groupNumber, fmtDate.Format("02.01.2006"), getRuWeekDay(fmtDate), len(lessons))
 
 	if len(lessons) == 0 {
 		message += "Занятий нет - выходные 🥳"
@@ -196,144 +181,5 @@ func formMessage(groupNumber string, date string) string {
 			lessons[i].GetSummary(), lessonType, teacher, classroom, //lessons[i].GetLocation(),
 			lessons[i].GetStart().Format("15:04"), lessons[i].GetEnd().Format("15:04"))
 	}
-	log2file("Formed message for "+groupNumber+".", nil)
 	return message
-}
-
-func getBinding(db *sql.DB, conversationId int) (bool, string) {
-
-	// Функция для проверки наличия ассоциации группы с чатом ВК.
-	// Происходит поиск в таблице по ID чата ВК, если запись имеется, то возвращается положительный результат и номер группы,
-	// иначе, отрицательный рез-тат и пустая строка, вместо номера группы.
-
-	var dbAnswer string
-	err := db.QueryRow("select groupNumber from binds where groupid = ?", conversationId).Scan(&dbAnswer)
-	if err != nil {
-		log2file("ERROR on getBinding() with"+string(rune(conversationId))+".", err)
-	}
-	log2file(fmt.Sprintf("getBinding() with %d .", conversationId), nil)
-	if dbAnswer == "" {
-		// Если dbAnswer пуста, значит, ассоциация пока не была создана.
-		return false, ""
-	} else {
-		// Иначе, ассоциация имеется.
-		return true, dbAnswer
-	}
-}
-
-func setBinding(db *sql.DB, conversationId int, groupNumber string) bool {
-
-	// Функция для установки ассоциации группы с чатом ВК.
-	// Таблица с ассоциациями дополняется новой парой "ID чата - номер группы"
-
-	sqlStatement := "insert into binds(groupId, groupNumber) values (?, ?);"
-	stmt, _ := db.Prepare(sqlStatement)
-	_, err := stmt.Exec(conversationId, groupNumber)
-	stmt.Close()
-
-	// Проверяется наличие информации в переменной err.
-	if err != nil {
-		// Если err не пуста, значит что-то пошло не так, и пара не была добавлена.
-		log2file(fmt.Sprintf("ERROR on setBinding() with %d and %s.", conversationId, groupNumber), nil)
-
-		return false
-	} else {
-		// Иначе, пара добавлена, функция возвращает положительный ответ.
-		log2file(fmt.Sprintf("setBinding() with %d and %s.", conversationId, groupNumber), nil)
-		return true
-	}
-}
-
-func rmBinding(db *sql.DB, conversationId int) bool {
-
-	// Функция для удаления ассоциации группы с чатом ВК.
-	// В таблице ассоциаций проходит поиск по ID чата, если таковой найден - строка удаляется.
-
-	sqlStatement := "DELETE FROM binds WHERE groupId = ?;"
-	stmt, _ := db.Prepare(sqlStatement)
-	_, err := stmt.Exec(conversationId)
-	stmt.Close()
-
-	// Проверяется наличие информации в переменной err.
-	if err != nil {
-		// Если err не пуста, значит что-то пошло не так, и пара не была удалена.
-		log2file(fmt.Sprintf("ERROR on rmBinding() with %d.", conversationId), nil)
-		return false
-	} else {
-		// Иначе, пара удалена, функция возвращает положительный ответ.
-		log2file(fmt.Sprintf("rmBinding() with %d.", conversationId), nil)
-		return true
-	}
-}
-
-func getBindingsInfo(db *sql.DB) string {
-
-	// Функция getBindingsInfo() отвечает за формирование сообщения со всеми асоциациями.
-
-	var message string
-	var groupId string
-	var groupNumber string
-	var counter = 0
-
-	// Выражение, для получения всех столбцов БД
-	rows, err := db.Query("select groupID, groupNumber from binds")
-
-	message = "Актуальные ассоциации в БД:\n"
-
-	defer rows.Close()
-	for rows.Next() {
-
-		counter++
-
-		err = rows.Scan(&groupId, &groupNumber)
-		if err != nil {
-			log2file(fmt.Sprintf("ERROR on getBindingsInfo()"), nil)
-		}
-		message += fmt.Sprintf("%d. Чат %s - группа %s\n", counter, groupId, groupNumber)
-	}
-	return message
-}
-
-func log2file(str string, err error) {
-	f, _ := os.OpenFile("bot.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-	defer f.Close()
-	log := fmt.Sprintf("%s %s", time.Now().Format("15:04:05 02/01/2006"), str)
-	if err != nil {
-		log += fmt.Sprint(err)
-	}
-	f.WriteString(log + "\n")
-}
-
-func sendUpdMessage(db *sql.DB, vk *api.VK, message string) string {
-
-	// Функция для рассылки произвольного сообщения по всем беседам, в которых были созданы ассоциации.
-
-	var groupId = 0
-	var response = fmt.Sprintf("Сообщение: \n\"%s\n\nБыло отправлено в: ", message)
-	// Запрос к БД на получение всех ID ассоциированных чатов
-	rows, err := db.Query("select groupID from binds")
-	if err != nil {
-		log2file(fmt.Sprintf("DB(upd-get) ERROR: "), err)
-	}
-
-	defer rows.Close()
-	for rows.Next() {
-
-		// Получение ID бесед
-		err = rows.Scan(&groupId)
-		if err != nil {
-			log2file(fmt.Sprintf("DB(upd-query-get) ERROR: "), err)
-		}
-
-		println(groupId)
-
-		// Отправка переданного в функцию сообщения в беседу с соответствующим groupId
-		b := params.NewMessagesSendBuilder()
-		b.RandomID(0)
-		b.PeerID(groupId)
-		b.Message(message)
-		vk.MessagesSend(b.Params)
-		response += fmt.Sprintf("%d", groupId)
-	}
-	return response
 }

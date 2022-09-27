@@ -17,13 +17,10 @@ import (
 
 func main() {
 
+	// dev
+
 	// Подключение к БД sqlite3
 	db, err := sql.Open("sqlite3", "./sqlite.db")
-	if err != nil {
-		log2file("DB open ERROR: ", err)
-	} else {
-		log2file("DB successfully opened.", nil)
-	}
 
 	// Подключение к API VK с помощью токена, и получение группы, от которой был получен токен.
 	vk := api.NewVK(TOKEN)
@@ -43,16 +40,14 @@ func main() {
 		b.PeerID(obj.Message.PeerID)
 
 		// Перевод сообщения в нижний регистр для последующего поиска в нем.
-		obj.Message.Text = strings.ToLower(obj.Message.Text)
+		text := strings.ToLower(obj.Message.Text)
 
 		// Блок сообщений-команд.
 
-		if strings.Contains(obj.Message.Text, "/help") {
+		if strings.Contains(text, "/help") {
 
 			// Если сообщение содержит текст "/help", то в качестве ответа будет отправлена переменная helpMsg (messages.go),
 			// содержащее список команд и полезной информации.
-
-			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
 
 			// Сборка сообщения-ответа.
 			b.Message(helpMsg)
@@ -60,40 +55,36 @@ func main() {
 			return
 		}
 
-		if strings.Contains(obj.Message.Text, "/bind") {
+		if strings.Contains(text, "/bind") {
 
 			// Если сообщение содержит текст "/bind", необходимо обнаружить номер группы, отправленный в сообщении,
 			// проверить наличие существующей ассоциации и, при её отсутствии, создать с ней новую.
 
-			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
+			var groupNumber string
 
 			// Номер группы в сообщении обнаруживается с помощью регулярного выражения.
-			haveNumber, _ := regexp.MatchString("/bind (\\d[А-яA-z0-9]\\d)(\\-[А-яA-z0-9]{0,2})?", obj.Message.Text)
+			re := regexp.MustCompile(`(\d\w\d)(\-\w{0,2})?`)
+			groupNumber = re.FindString(text)
 
-			if haveNumber {
+			bindFlag, bindGroup := getBinding(db, obj.Message.PeerID)
 
-				// Если в сообщении обнаружен номер группы, в таком случае, он вычленяется из сообщения и передается
-				// в функцию getBinding(), для проверки на наличие ассоциации.
-				re := regexp.MustCompile(`(\d[А-яA-z0-9]\d)(\-[А-яA-z0-9]{0,2})?`)
-				bindingGroupNumber := re.FindString(obj.Message.Text)
-				bindFlag, _ := getBinding(db, obj.Message.PeerID)
-
+			if groupNumber != "" {
 				if !bindFlag {
-
-					// Если функция getBinding() возвращает отрицательный результат, т.е. ассоциации не существует,
-					// вызывается функция setBinding() для её создания.
-					if setBinding(db, obj.Message.PeerID, bindingGroupNumber) {
-
+					if setBinding(db, obj.Message.PeerID, groupNumber) {
 						// Если результат положительный, обработка сообщения заканчивается и задается финальное сообщение.
-						message = fmt.Sprintf("Теперь ваша группа автоматически будет получать расписание группы %s.\nДля получения подробной информации введите /help.", bindingGroupNumber)
+						message = fmt.Sprintf(successfulBindMsg, groupNumber)
 					} else {
 						// Если результат отрицательный, обработка сообщения заканчивается ошибкой и задается финальное сообщение о ней.
-						message = "Что-то пошло не так. Уведомите об этом автора бота.\nДля получения подробной информации введите /help."
+						message = unhandledErrMsg
 					}
+				} else {
+					rmBinding(db, obj.Message.PeerID)
+					setBinding(db, obj.Message.PeerID, groupNumber)
+					message = fmt.Sprintf(successfulRebindMsg, bindGroup, groupNumber)
 				}
 			} else {
 				// Если синтаксис команды неправильный, обработка сообщения заканчивается ошибкой и задается финальное сообщение о ней.
-				message = "Использование команды: /bind *номер_группы*.\nДля получения подробной информации введите /help."
+				message = fmt.Sprintf(infoBindMsg, bindGroup)
 			}
 
 			// Сборка сообщения-ответа.
@@ -102,13 +93,16 @@ func main() {
 			return
 		}
 
-		if strings.Contains(obj.Message.Text, "/unbind") {
+		if strings.Contains(text, "/unbind") {
 
 			// Если сообщение содержит текст "/unbind", необходимо обнаружить номер группы, отправленный в сообщении,
 			// проверить наличие существующей с ней ассоциации и, при её наличии, удалить ее.
 
-			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
+			isBound, _ := getBinding(db, obj.Message.PeerID)
 
+			if !isBound {
+				message = noBindMsg
+			}
 			// Для удаления ассоциации вызывается функция rmBinding().
 			if rmBinding(db, obj.Message.PeerID) {
 
@@ -116,7 +110,7 @@ func main() {
 				message = "Ассоциация удалена."
 			} else {
 				// Иначе, обработка сообщения заканчивается ошибкой и задается финальное сообщение о ней.
-				message = "Что-то пошло не так, либо ассоциации не существует.\n Если вы уверены, что это ошибка - уведомите об этом автора бота.\nДля получения подробной информации введите /help."
+				message = unhandledErrMsg
 			}
 
 			// Сборка сообщения-ответа.
@@ -127,11 +121,11 @@ func main() {
 
 		// Блок служебных команд
 
-		if strings.Contains(obj.Message.Text, "/db") {
+		if strings.Contains(text, "/db") {
 
 			// Если сообщение содержит текст "/db", необходимо отправить все существующие ассоциации чатов с группами в качестве ответа.
 
-			// т.к. функция служебная, необходимо проверять, от кого приходит сообщение.
+			// Так как функция служебная, необходимо проверять, от кого приходит сообщение.
 			// Если сообщение пришло не от меня, то в качестве ответа отправляется сообщение о нехватке доступа.
 			if obj.Message.PeerID != 366661090 {
 				b.Message(noAccess)
@@ -143,19 +137,17 @@ func main() {
 			return
 		}
 
-		if strings.Contains(obj.Message.Text, "/upd ") {
+		if strings.Contains(text, "/upd ") {
 
 			// Если сообщение содержит текст "/udp", то в качестве ответа будет отправлена переменная helpMsg (messages.go),
 			// содержащее список команд и полезной информации.
-
-			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
 
 			if obj.Message.PeerID != 366661090 {
 				b.Message(noAccess)
 			} else {
 				msg := strings.ReplaceAll(obj.Message.Text, "/upd", "")
-				sendUpdMessage(db, vk, msg)
-				b.Message("S")
+				b.PeerID(366661090)
+				b.Message(sendUpdMessage(db, vk, msg))
 			}
 			vk.MessagesSend(b.Params)
 			// Сборка сообщения-ответа.
@@ -164,40 +156,44 @@ func main() {
 
 		// Блок расписания.
 
-		if strings.Contains(obj.Message.Text, "расписос на завтра") {
+		if strings.Contains(text, "расписос на завтра") {
 
 			// "Расписос на завтра" подразумевает все то же самое, что и "расписос", но на дату завтрашнего дня.
 
-			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
-
 			var date string
+			var tomorrow = time.Now().AddDate(0, 0, 1)
+			var groupNumber string
+			var bindFlag bool
 
-			// Проверка на выходной день
-			if time.Now().AddDate(0, 0, 1).Weekday().String() == "Sunday" {
-				// Если завтра воскресенье, то прибавляется два дня, вместо одного
-				date = time.Now().AddDate(0, 0, 2).Format("20060102")
-				message += "Завтра воскресенье, но вот расписание на понедельник: \n"
+			re := regexp.MustCompile(`(\d\w\d)(\-\w{0,2})?`)
+			groupNumber = re.FindString(text)
+
+			re = regexp.MustCompile(`\d\d\.\d\d`)
+			date = re.FindString(text)
+
+			if date != "" {
+				date = date + ".2022"
 			} else {
-				// Иначе, прибавляется один день
-				date = time.Now().AddDate(0, 0, 1).Format("20060102")
-			}
-
-			haveNumber, _ := regexp.MatchString("расписос на завтра (\\d[А-яA-z0-9]\\d)(\\-[А-яA-z0-9]{0,2})?", obj.Message.Text)
-
-			if !haveNumber {
-				bindFlag, groupNumber := getBinding(db, obj.Message.PeerID)
-				if bindFlag {
-					parseSchedule(groupNumber, date)
-					message = formMessage(groupNumber, date)
+				if isSunday(tomorrow) {
+					date = tomorrow.AddDate(0, 0, 1).Format("20060102")
+					message += exTommorowIsSunday
 				} else {
-					message = "Использование: расписос на завтра *номер_группы*.\nДля получения подробной информации введите /help."
+					// Иначе, используется сегодняшняя дата
+					date = tomorrow.Format("20060102")
 				}
-			} else {
-				re := regexp.MustCompile(`(\d[А-яA-z0-9]\d)(\-[А-яA-z0-9]{0,2})?`)
-				groupNumber := re.FindString(obj.Message.Text)
-				parseSchedule(groupNumber, date)
-				message = formMessage(groupNumber, date)
 			}
+
+			if groupNumber == "" {
+				bindFlag, groupNumber = getBinding(db, obj.Message.PeerID)
+				if !bindFlag {
+					message = raspisosTommorowUsage
+					b.Message(message)
+					vk.MessagesSend(b.Params)
+					return
+				}
+			}
+			parseSchedule(groupNumber, date)
+			message = formMessage(groupNumber, date)
 
 			// Собираем сообщение-ответ
 			b.Message(message)
@@ -207,53 +203,43 @@ func main() {
 
 		if strings.Contains(obj.Message.Text, "расписос") {
 
-			// Если сообщение содержит текст "расписос", ожидается два варианта развития событий:
-			// 1. Чат ассоциирован с группой
-			// 2. Чат не ассоциирован с группой
-
-			log2file(fmt.Sprintf("Received message *%s*, from %d.", obj.Message.Text, obj.Message.PeerID), nil)
-
 			var date string
+			var today = time.Now()
+			var groupNumber string
+			var bindFlag bool
 
-			// Проверка на выходной день
-			if time.Now().Weekday().String() == "Sunday" {
-				// Если сегодня воскресенье, то к дате прибавляется один день
-				date = time.Now().AddDate(0, 0, 1).Format("20060102")
-				message += "Сегодня воскресенье, но вот расписание на понедельник: \n"
+			re := regexp.MustCompile(`(\d\w\d)(\-\w{0,2})?`)
+			groupNumber = re.FindString(text)
+
+			re = regexp.MustCompile(`\d\d\.\d\d`)
+			date = re.FindString(text)
+
+			if date != "" {
+				date = date + ".2022"
+				splitDate := strings.Split(date, ".")
+				date = fmt.Sprintf("%s%s%s", splitDate[2], splitDate[1], splitDate[0])
 			} else {
-				// Иначе, используется сегодняшняя дата
-				date = time.Now().Format("20060102")
-			}
-
-			// Необходимо найти номер группы в сообщении, с помощью регулярных выражений.
-			//haveNumber, _ := regexp.MatchString("расписос (\\d(\\w|\\d)\\d)(\\-(\\w|\\d))?", obj.Message.Text)
-			haveNumber, _ := regexp.MatchString("расписос (\\d[А-яA-z0-9]\\d)(\\-[А-яA-z0-9]{0,2})?", obj.Message.Text)
-
-			if !haveNumber {
-
-				// Если номер группы в сообщении, не обнаружен, необходимо проверить наличие ассоциации в БД.
-				bindFlag, groupNumber := getBinding(db, obj.Message.PeerID)
-				if bindFlag {
-
-					// Если ассоциация найдена, необходимо передать переменную groupNumber
-					// в parseSchedule() и formMessage(), для отправки расписания.
-					parseSchedule(groupNumber, date)
-					message = formMessage(groupNumber, date)
+				if isSunday(today) {
+					date = today.AddDate(0, 0, 1).Format("20060102")
+					message += exTodayIsSunday
 				} else {
-
-					// Если номер группы не найден И ассоциации не существует, значит синтаксис команды неправильный,
-					// а значит, формируется финальное сообщение с описанием синтаксиса.
-					message = "Использование: расписос *номер_группы*.\nДля получения подробной информации введите /help."
+					// Иначе, используется сегодняшняя дата
+					date = today.Format("20060102")
 				}
-			} else {
-
-				// Если номер группы найден в сообщении, необходимо передать переменную groupNumber
-				// в parseSchedule() и formMessage(), для отправки расписания.
-				re := regexp.MustCompile(`(\d[А-яA-z0-9]\d)(\-[А-яA-z0-9]{0,2})?`)
-				groupNumber := re.FindString(obj.Message.Text)
-				parseSchedule(groupNumber, date)
-				message = formMessage(groupNumber, date)
 			}
+
+			if groupNumber == "" {
+				bindFlag, groupNumber = getBinding(db, obj.Message.PeerID)
+				if !bindFlag {
+					message = raspisosUsage
+					b.Message(message)
+					vk.MessagesSend(b.Params)
+					return
+				}
+			}
+
+			parseSchedule(groupNumber, date)
+			message = formMessage(groupNumber, date)
 
 			// Собираем сообщение-ответ
 			b.Message(message)
@@ -267,4 +253,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 }
