@@ -158,7 +158,7 @@ func formMessage(groupNumber string, date string) string {
 	var fmtDate, _ = time.Parse("20060102", date)
 
 	// Формирование шапки сообщения.
-	message += fmt.Sprintf("Расписание группы %s на %s (%s).\nВсего %d пар.\n\n", groupNumber, fmtDate.Format("02.01.2006"), getRuWeekDay(fmtDate), len(lessons))
+	message += fmt.Sprintf("Расписание группы %s на %s (%s).\nВсего занятий - %d.\n\n", groupNumber, fmtDate.Format("02.01.2006"), getRuWeekDay(fmtDate), len(lessons))
 
 	if len(lessons) == 0 {
 		message += "Занятий нет - выходные 🥳"
