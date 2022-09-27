@@ -201,7 +201,7 @@ func main() {
 			return
 		}
 
-		if strings.Contains(obj.Message.Text, "расписос") {
+		if strings.Contains(text, "расписос") {
 
 			var date string
 			var today = time.Now()
