@@ -17,8 +17,6 @@ import (
 
 func main() {
 
-	// dev
-
 	// Подключение к БД sqlite3
 	db, err := sql.Open("sqlite3", "./sqlite.db")
 
